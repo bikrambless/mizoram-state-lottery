@@ -121,8 +121,13 @@ function startCountdownTimer() {
     if (secondsEl) secondsEl.textContent = String(secs).padStart(2, '0');
     if (upcomingTitleEl) upcomingTitleEl.textContent = targetTitle;
 
-    // Trigger instant check when countdown reaches exact draw second
-    if (diffSeconds === 0 || diffSeconds === 1) {
+    // Auto-refresh when draw arrives and periodically during the draw release window
+    if (diffSeconds <= 2 && diffSeconds >= -300) {
+      // Poll every 10 seconds during the 5 minutes following draw time
+      if (nowSec % 10 === 0 && state.currentDate === getTodayIST()) {
+        fetchLatestResults().then(() => loadBothResults());
+      }
+    } else if (diffSeconds === 0 || diffSeconds === 1) {
       if (state.currentDate === getTodayIST()) {
         fetchLatestResults().then(() => loadBothResults());
       }
@@ -139,6 +144,13 @@ function startCountdownTimer() {
 
   update();
   setInterval(update, 1000);
+
+  // Periodic background check every 45 seconds so freshly published results appear automatically
+  setInterval(() => {
+    if (state.currentDate === getTodayIST()) {
+      fetchLatestResults().then(() => loadBothResults());
+    }
+  }, 45000);
 }
 
 // -------------------------------------------------------------
@@ -146,7 +158,7 @@ function startCountdownTimer() {
 // -------------------------------------------------------------
 async function fetchLatestResults() {
   try {
-    const res = await fetch('/api/results/latest');
+    const res = await fetch(`/api/results/latest?t=${Date.now()}`);
     const data = await res.json();
     if (data.success) {
       state.latestResults = data;
@@ -187,7 +199,7 @@ async function loadSingleSlot(slot) {
   if (emptyView) emptyView.style.display = 'none';
 
   try {
-    const url = `/api/results?date=${encodeURIComponent(state.currentDate)}&slot=${slot}&limit=1`;
+    const url = `/api/results?date=${encodeURIComponent(state.currentDate)}&slot=${slot}&limit=1&t=${Date.now()}`;
     const res = await fetch(url);
     const data = await res.json();
 

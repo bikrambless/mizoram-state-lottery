@@ -164,9 +164,9 @@ async function loadStorageStatus() {
   }
 }
 
-// Helper: Check if an item is published
+// Helper: Check if an item is published (computes dynamically based on current time)
 function isItemPublished(item) {
-  if (item.is_published !== undefined) return !!item.is_published;
+  if (!item) return false;
   if (!item.publish_at) return true;
   let clean = String(item.publish_at).trim();
   if (!clean.endsWith('Z') && !/[+-]\d{2}(:?\d{2})?$/.test(clean)) {
@@ -575,6 +575,8 @@ function setupSlotUploader(cfg) {
     if (alertBox) alertBox.style.display = 'none';
   }
 
+  const submitBtn = form ? form.querySelector('button[type="submit"]') : null;
+
   async function handleFile(file) {
     hideAlert();
 
@@ -584,6 +586,10 @@ function setupSlotUploader(cfg) {
       if (fileInfo) fileInfo.style.display = 'flex';
       if (fileName) fileName.textContent = `📄 Converting ${file.name} to JPG...`;
       if (fileSize) fileSize.textContent = 'Processing PDF...';
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        if (submitText) submitText.textContent = '📄 Converting PDF to High-Res JPG...';
+      }
 
       try {
         const converted = await convertPdfToJpg(file, (msg) => {
@@ -598,6 +604,12 @@ function setupSlotUploader(cfg) {
         console.error('PDF conversion error:', err);
         showAlert(`Could not convert PDF: ${err.message}. Please upload a JPG or PNG instead.`, 'error');
         clearFile();
+      } finally {
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          const checkedMode = document.querySelector(`input[name="${cfg.slot}_publish_mode"]:checked`)?.value || 'scheduled';
+          updateModeUI(checkedMode);
+        }
       }
       return;
     }
@@ -728,7 +740,8 @@ function setupSlotUploader(cfg) {
         formData.append('publish_at', publishAtVal);
       }
 
-      // Show Progress
+      // Show Progress & Disable Button
+      if (submitBtn) submitBtn.disabled = true;
       if (progressWrapper) progressWrapper.style.display = 'block';
       if (progressFill) progressFill.style.width = '0%';
       if (progressPercent) progressPercent.textContent = '0%';
@@ -751,6 +764,7 @@ function setupSlotUploader(cfg) {
       };
 
       xhr.onload = () => {
+        if (submitBtn) submitBtn.disabled = false;
         if (progressWrapper) progressWrapper.style.display = 'none';
         try {
           const res = JSON.parse(xhr.responseText);
@@ -772,6 +786,7 @@ function setupSlotUploader(cfg) {
       };
 
       xhr.onerror = () => {
+        if (submitBtn) submitBtn.disabled = false;
         if (progressWrapper) progressWrapper.style.display = 'none';
         showAlert('Network error occurred during upload.', 'error');
       };
@@ -924,4 +939,13 @@ document.addEventListener('DOMContentLoaded', () => {
   setupUploadSlots();
   setupModals();
   verifySession();
+
+  // Auto-refresh scheduled/live status badges in admin dashboard every 15 seconds
+  setInterval(() => {
+    if (adminState.token && adminState.results && adminState.results.length > 0) {
+      updateTodayStats();
+      updateSlotStatusForSelectedDate();
+      renderFilteredUploads();
+    }
+  }, 15000);
 });
