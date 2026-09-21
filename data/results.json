@@ -1,0 +1,32 @@
+[
+  {
+    "id": "mub1ifbzg91rbe",
+    "draw_date": "2026-09-21",
+    "draw_time": "09:00 PM",
+    "slot": "night",
+    "draw_name": "Night Result",
+    "series": "Night Series",
+    "image_url": "/uploads/2026-09-21_night_1789982747423.jpeg",
+    "file_name": "2026-09-21_night_1789982747423.jpeg",
+    "file_type": "image/jpeg",
+    "file_size": 289658,
+    "publish_at": "2026-09-21T14:56:00+05:30",
+    "created_at": "2026-09-21T09:25:47.424Z",
+    "updated_at": "2026-09-21T09:25:47.425Z"
+  },
+  {
+    "id": "muauzxuaksydo8",
+    "draw_date": "2026-09-21",
+    "draw_time": "02:00 PM",
+    "slot": "morning",
+    "draw_name": "Morning Result",
+    "series": "Night Series",
+    "image_url": "/uploads/2026-09-21_morning_1789971807250.jpeg",
+    "file_name": "2026-09-21_morning_1789971807250.jpeg",
+    "file_type": "image/jpeg",
+    "file_size": 289658,
+    "publish_at": "2026-09-21T14:00:00+05:30",
+    "created_at": "2026-09-21T06:23:27.252Z",
+    "updated_at": "2026-09-21T06:23:27.252Z"
+  }
+]

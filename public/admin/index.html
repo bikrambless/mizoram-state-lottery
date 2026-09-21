@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Dashboard | MIZORAM STATE LOTTERY</title>
+  
+  <!-- Favicon -->
+  <link rel="icon" type="image/jpeg" href="/images/favicon.jpg">
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="/admin/admin.css">
+</head>
+<body>
+  <div class="texture-overlay"></div>
+
+  <!-- LOGIN SCREEN -->
+  <div class="login-wrapper" id="login-section">
+    <div class="login-card">
+      <div class="login-brand">
+        <img src="/images/emblem.jpg" alt="Mizoram Emblem" class="login-emblem">
+        <h2>MIZORAM STATE LOTTERY</h2>
+        <p>Official Officer Publishing Portal</p>
+      </div>
+
+      <form id="admin-login-form" class="login-form">
+        <div class="form-error-banner" id="login-error-banner" style="display: none;"></div>
+
+        <div class="input-field">
+          <label for="admin-username">Username</label>
+          <input type="text" id="admin-username" placeholder="admin" required autocomplete="username">
+        </div>
+
+        <div class="input-field">
+          <label for="admin-password">Password</label>
+          <input type="password" id="admin-password" placeholder="••••••••••••" required autocomplete="current-password">
+        </div>
+
+        <button type="submit" class="btn btn-login" id="btn-submit-login">
+          <span>Authenticate &amp; Enter</span>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+        </button>
+
+        <div class="login-note">
+          <span>Default credentials: <code>admin</code> / configured in <code>.env</code></span>
+        </div>
+      </form>
+
+      <div class="login-footer">
+        <a href="/" class="back-home-link">&larr; Return to Public Portal</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- ADMIN DASHBOARD (Protected) -->
+  <div class="dashboard-wrapper" id="dashboard-section" style="display: none;">
+    <!-- Top Navigation Bar -->
+    <header class="dash-navbar">
+      <div class="dash-nav-left">
+        <img src="/images/emblem.jpg" alt="Mizoram Logo" class="dash-nav-logo">
+        <div>
+          <h1 class="dash-title">MIZORAM STATE LOTTERY</h1>
+          <span class="dash-sub">Result Publishing &amp; Sheet Management Console</span>
+        </div>
+      </div>
+
+      <div class="dash-nav-right">
+        <!-- Storage Health Indicator -->
+        <div class="storage-health-badge" id="storage-health-badge" title="Storage Engine Status">
+          <span class="storage-dot"></span>
+          <span id="storage-health-text">Checking storage...</span>
+        </div>
+
+        <a href="/" target="_blank" class="btn-dash-link" title="Open public live portal">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+          <span>View Site</span>
+        </a>
+
+        <button class="btn-dash-logout" id="btn-logout" title="Sign out">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+          <span>Logout</span>
+        </button>
+      </div>
+    </header>
+
+    <div class="dash-container">
+      
+      <!-- Stats Overview Cards -->
+      <div class="stats-grid">
+        <div class="stat-card">
+          <span class="stat-label">TOTAL SHEETS PUBLISHED</span>
+          <span class="stat-value" id="stat-total-count">0</span>
+          <span class="stat-desc">Historical archive records</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">MORNING RESULT (TODAY)</span>
+          <span class="stat-value text-gold" id="stat-morning-status" style="font-size: 1.25rem;">Checking...</span>
+          <span class="stat-desc" id="stat-morning-desc">Slot 1 Status</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">NIGHT RESULT (TODAY)</span>
+          <span class="stat-value text-cyan" id="stat-night-status" style="font-size: 1.25rem;">Checking...</span>
+          <span class="stat-desc" id="stat-night-desc">Slot 2 Status</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">CURRENT OFFICER</span>
+          <span class="stat-value" id="stat-admin-user">admin</span>
+          <span class="stat-desc" id="stat-storage-sub">Local Engine</span>
+        </div>
+      </div>
+
+      <div class="section-divider"></div>
+
+      <!-- Upload Slots Control Bar -->
+      <div class="upload-section-card">
+        <div class="upload-section-topbar">
+          <div class="topbar-title-group">
+            <h3>Publish Lottery Results</h3>
+            <p>Upload official sheets directly into the 2 daily slots (Morning &amp; Night)</p>
+          </div>
+          
+          <div class="common-date-picker-wrap">
+            <label for="admin-draw-date"><strong>📅 Draw Date:</strong></label>
+            <input type="date" id="admin-draw-date" class="date-input-primary" required>
+          </div>
+        </div>
+
+        <!-- 2 DEDICATED SLOTS FOR UPLOADING: MORNING & NIGHT -->
+        <div class="slots-upload-grid">
+          
+          <!-- ============================================== -->
+          <!-- SLOT 1: MORNING RESULT                         -->
+          <!-- ============================================== -->
+          <div class="slot-panel morning-panel">
+            <div class="slot-panel-header">
+              <div class="slot-header-left">
+                <span class="slot-indicator-badge morning">SLOT 1</span>
+                <div>
+                  <h4 class="slot-title">🌅 Morning Result</h4>
+                  <span class="slot-subtitle">Official morning draw sheet</span>
+                </div>
+              </div>
+              <span class="slot-live-pill" id="morning-pill">Pending</span>
+            </div>
+
+            <form id="upload-morning-form" class="slot-upload-form">
+              <!-- Dropzone for Morning -->
+              <div class="file-dropzone" id="morning-dropzone">
+                <input type="file" id="morning-file-input" name="file" accept="image/jpeg,image/png,application/pdf" class="file-input-hidden" required>
+                <div class="dropzone-content" id="morning-drop-content">
+                  <div class="dropzone-icon">🌅</div>
+                  <div class="dropzone-text">
+                    <strong>Click to select</strong> or drag Morning sheet here
+                  </div>
+                  <span class="dropzone-sub">High-res JPG, PNG or PDF (up to 25MB)</span>
+                </div>
+
+                <div class="file-selected-info" id="morning-file-info" style="display: none;">
+                  <span class="file-name" id="morning-file-name">filename.jpg</span>
+                  <span class="file-size" id="morning-file-size">1.2 MB</span>
+                  <button type="button" class="btn-remove-file" id="btn-remove-morning-file" title="Remove file">&times;</button>
+                </div>
+              </div>
+
+              <!-- Scheduled Publishing Controls for Morning -->
+              <div class="schedule-control-group">
+                <div class="schedule-group-header">
+                  <span class="schedule-group-title">⏱️ Publish Timing</span>
+                  <span class="schedule-mode-badge" id="morning-mode-badge">Auto at 02:00 PM</span>
+                </div>
+                <div class="schedule-options">
+                  <label class="schedule-opt-label">
+                    <input type="radio" name="morning_publish_mode" value="scheduled" checked>
+                    <span class="schedule-opt-card">
+                      <span class="opt-icon">⏰</span>
+                      <span class="opt-body">
+                        <strong>Auto-Publish at Draw Time</strong>
+                        <small>Public site unlocks at 02:00 PM IST</small>
+                      </span>
+                    </span>
+                  </label>
+                  <label class="schedule-opt-label">
+                    <input type="radio" name="morning_publish_mode" value="instant">
+                    <span class="schedule-opt-card">
+                      <span class="opt-icon">⚡</span>
+                      <span class="opt-body">
+                        <strong>Publish Immediately</strong>
+                        <small>Goes live instantly on public portal</small>
+                      </span>
+                    </span>
+                  </label>
+                  <label class="schedule-opt-label">
+                    <input type="radio" name="morning_publish_mode" value="custom">
+                    <span class="schedule-opt-card">
+                      <span class="opt-icon">🕒</span>
+                      <span class="opt-body">
+                        <strong>Custom Time</strong>
+                        <small>Set custom release time</small>
+                      </span>
+                    </span>
+                  </label>
+                </div>
+                <div class="custom-time-row" id="morning-custom-time-row" style="display: none;">
+                  <label for="morning-custom-time">Exact Release Time (IST):</label>
+                  <input type="time" id="morning-custom-time" value="14:00" class="time-input-custom">
+                </div>
+              </div>
+
+              <!-- Progress Bar for Morning -->
+              <div class="progress-bar-wrapper" id="morning-progress-wrapper" style="display: none;">
+                <div class="progress-info">
+                  <span id="morning-progress-text">Uploading sheet...</span>
+                  <span id="morning-progress-percent">0%</span>
+                </div>
+                <div class="progress-track">
+                  <div class="progress-fill" id="morning-progress-fill" style="width: 0%;"></div>
+                </div>
+              </div>
+
+              <!-- Form Alert for Morning -->
+              <div class="form-alert" id="morning-alert" style="display: none;"></div>
+
+              <button type="submit" class="btn btn-slot-submit morning-submit" id="btn-submit-morning">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                <span id="morning-submit-text">Schedule Morning Result (02:00 PM)</span>
+              </button>
+            </form>
+          </div>
+
+          <!-- ============================================== -->
+          <!-- SLOT 2: NIGHT RESULT                           -->
+          <!-- ============================================== -->
+          <div class="slot-panel night-panel">
+            <div class="slot-panel-header">
+              <div class="slot-header-left">
+                <span class="slot-indicator-badge night">SLOT 2</span>
+                <div>
+                  <h4 class="slot-title">🌙 Night Result</h4>
+                  <span class="slot-subtitle">Official night draw sheet</span>
+                </div>
+              </div>
+              <span class="slot-live-pill" id="night-pill">Pending</span>
+            </div>
+
+            <form id="upload-night-form" class="slot-upload-form">
+              <!-- Dropzone for Night -->
+              <div class="file-dropzone" id="night-dropzone">
+                <input type="file" id="night-file-input" name="file" accept="image/jpeg,image/png,application/pdf" class="file-input-hidden" required>
+                <div class="dropzone-content" id="night-drop-content">
+                  <div class="dropzone-icon">🌙</div>
+                  <div class="dropzone-text">
+                    <strong>Click to select</strong> or drag Night sheet here
+                  </div>
+                  <span class="dropzone-sub">High-res JPG, PNG or PDF (up to 25MB)</span>
+                </div>
+
+                <div class="file-selected-info" id="night-file-info" style="display: none;">
+                  <span class="file-name" id="night-file-name">filename.jpg</span>
+                  <span class="file-size" id="night-file-size">1.2 MB</span>
+                  <button type="button" class="btn-remove-file" id="btn-remove-night-file" title="Remove file">&times;</button>
+                </div>
+              </div>
+
+              <!-- Scheduled Publishing Controls for Night -->
+              <div class="schedule-control-group">
+                <div class="schedule-group-header">
+                  <span class="schedule-group-title">⏱️ Publish Timing</span>
+                  <span class="schedule-mode-badge" id="night-mode-badge">Auto at 09:00 PM</span>
+                </div>
+                <div class="schedule-options">
+                  <label class="schedule-opt-label">
+                    <input type="radio" name="night_publish_mode" value="scheduled" checked>
+                    <span class="schedule-opt-card">
+                      <span class="opt-icon">⏰</span>
+                      <span class="opt-body">
+                        <strong>Auto-Publish at Draw Time</strong>
+                        <small>Public site unlocks at 09:00 PM IST</small>
+                      </span>
+                    </span>
+                  </label>
+                  <label class="schedule-opt-label">
+                    <input type="radio" name="night_publish_mode" value="instant">
+                    <span class="schedule-opt-card">
+                      <span class="opt-icon">⚡</span>
+                      <span class="opt-body">
+                        <strong>Publish Immediately</strong>
+                        <small>Goes live instantly on public portal</small>
+                      </span>
+                    </span>
+                  </label>
+                  <label class="schedule-opt-label">
+                    <input type="radio" name="night_publish_mode" value="custom">
+                    <span class="schedule-opt-card">
+                      <span class="opt-icon">🕒</span>
+                      <span class="opt-body">
+                        <strong>Custom Time</strong>
+                        <small>Set custom release time</small>
+                      </span>
+                    </span>
+                  </label>
+                </div>
+                <div class="custom-time-row" id="night-custom-time-row" style="display: none;">
+                  <label for="night-custom-time">Exact Release Time (IST):</label>
+                  <input type="time" id="night-custom-time" value="21:00" class="time-input-custom">
+                </div>
+              </div>
+
+              <!-- Progress Bar for Night -->
+              <div class="progress-bar-wrapper" id="night-progress-wrapper" style="display: none;">
+                <div class="progress-info">
+                  <span id="night-progress-text">Uploading sheet...</span>
+                  <span id="night-progress-percent">0%</span>
+                </div>
+                <div class="progress-track">
+                  <div class="progress-fill" id="night-progress-fill" style="width: 0%;"></div>
+                </div>
+              </div>
+
+              <!-- Form Alert for Night -->
+              <div class="form-alert" id="night-alert" style="display: none;"></div>
+
+              <button type="submit" class="btn btn-slot-submit night-submit" id="btn-submit-night">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                <span id="night-submit-text">Schedule Night Result (09:00 PM)</span>
+              </button>
+            </form>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- RECENT PUBLISHED SHEETS SECTION -->
+      <div class="dash-card recent-results-card">
+        <div class="dash-card-header">
+          <div class="card-header-left">
+            <h3>Recent Published Sheets</h3>
+            <span class="count-badge" id="results-count-badge">0 sheets</span>
+          </div>
+
+          <div class="card-header-right">
+            <div class="filter-tabs">
+              <button class="filter-tab active" data-filter="all">All</button>
+              <button class="filter-tab" data-filter="morning">🌅 Morning</button>
+              <button class="filter-tab" data-filter="night">🌙 Night</button>
+            </div>
+
+            <button class="btn-refresh-list" id="btn-refresh-results" title="Reload list">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"></path><path d="M1 20v-6h6"></path><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="results-list-container" id="results-list-container">
+          <!-- Populated via JavaScript -->
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Replace / Edit Sheet Modal (Draw Name Removed) -->
+  <div class="modal-overlay" id="edit-modal" style="display: none;">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h4>Edit / Replace Result Sheet</h4>
+        <button class="modal-close" id="btn-close-edit-modal">&times;</button>
+      </div>
+      <form id="edit-result-form">
+        <input type="hidden" id="edit-id">
+        <div class="form-row">
+          <div class="form-col">
+            <label for="edit-date">Draw Date</label>
+            <input type="date" id="edit-date" required>
+          </div>
+          <div class="form-col">
+            <label for="edit-slot">Result Slot</label>
+            <select id="edit-slot" required>
+              <option value="morning">🌅 Morning Result</option>
+              <option value="night">🌙 Night Result</option>
+            </select>
+          </div>
+        </div>
+        <div class="input-field" style="margin-top: 14px;">
+          <label for="edit-file-input">Replace Sheet File (Optional)</label>
+          <input type="file" id="edit-file-input" accept="image/jpeg,image/png,application/pdf">
+          <small style="color: var(--text-muted); margin-top: 4px; display: block;">Leave empty to keep existing result sheet image.</small>
+        </div>
+        <div class="input-field" style="margin-top: 14px;">
+          <label for="edit-publish-mode">Release Timing</label>
+          <select id="edit-publish-mode">
+            <option value="keep">Keep Current Timing</option>
+            <option value="instant">⚡ Publish Live Immediately</option>
+            <option value="scheduled">⏰ Auto-Publish at Slot Draw Time (02:00 PM / 09:00 PM)</option>
+            <option value="custom">🕒 Custom Release Time</option>
+          </select>
+        </div>
+        <div class="input-field" id="edit-custom-time-row" style="margin-top: 10px; display: none;">
+          <label for="edit-custom-time">Custom Release Time (IST)</label>
+          <input type="time" id="edit-custom-time" class="time-input-custom" value="14:00">
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="btn-cancel-edit">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="btn-save-edit">Save Changes</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Delete Confirmation Modal -->
+  <div class="modal-overlay" id="delete-modal" style="display: none;">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h4>Confirm Deletion</h4>
+        <button class="modal-close" id="btn-close-delete-modal">&times;</button>
+      </div>
+      <p style="color: #cbd5e1; margin: 15px 0;">Are you sure you want to delete this result sheet? This will permanently remove the record and file from the database and storage.</p>
+      <input type="hidden" id="delete-id">
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" id="btn-cancel-delete">Cancel</button>
+        <button type="button" class="btn btn-danger" id="btn-confirm-delete">Delete Sheet</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Admin JavaScript -->
+  <script src="/admin/admin.js"></script>
+</body>
+</html>
