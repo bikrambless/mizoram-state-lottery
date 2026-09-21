@@ -89,6 +89,17 @@
 
     <div class="dash-container">
       
+      <!-- Cloud / Local Storage Notice Banner -->
+      <div class="storage-alert-banner" id="storage-warning-banner" style="display: none;">
+        <div class="storage-alert-content">
+          <span class="storage-alert-icon">⚠️</span>
+          <div>
+            <strong>Warning: Operating in Ephemeral Local Storage Mode</strong>
+            <p>If your website is hosted on Render, Vercel, or cloud containers, uploads will be wiped whenever the server sleeps or restarts. To keep results permanently safe in the cloud, configure <code>SUPABASE_URL</code> and <code>SUPABASE_KEY</code> in your host's Environment Variables.</p>
+          </div>
+        </div>
+      </div>
+
       <!-- Stats Overview Cards -->
       <div class="stats-grid">
         <div class="stat-card">

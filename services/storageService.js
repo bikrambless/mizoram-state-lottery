@@ -50,6 +50,8 @@ class StorageService {
           auth: { persistSession: false }
         });
         console.log('[StorageService] Supabase client initialized.');
+        // Auto-sync any local JSON results and upload files to Supabase cloud
+        this.syncLocalToSupabase();
       } catch (err) {
         console.error('[StorageService] Failed to initialize Supabase client:', err.message);
         this.supabase = null;
@@ -57,6 +59,74 @@ class StorageService {
     } else {
       console.log('[StorageService] Supabase credentials not set. Operating in Local Fallback mode.');
       this.supabase = null;
+    }
+  }
+
+  // Synchronize local JSON and image files into Supabase Cloud on startup
+  async syncLocalToSupabase() {
+    if (!this.supabase) return;
+    try {
+      const localResults = this.readLocalResults();
+      if (!localResults || localResults.length === 0) return;
+
+      const { data: remoteResults, error: fetchErr } = await this.supabase
+        .from('results')
+        .select('draw_date, slot');
+
+      if (fetchErr) {
+        console.warn('[StorageService] Failed to query existing remote records for sync:', fetchErr.message);
+        return;
+      }
+
+      for (const local of localResults) {
+        const cleanSlot = (local.slot === 'day' ? 'morning' : local.slot).toLowerCase();
+        const exists = remoteResults && remoteResults.some(r =>
+          r.draw_date === local.draw_date &&
+          (r.slot.toLowerCase() === cleanSlot || (r.slot.toLowerCase() === 'morning' && cleanSlot === 'day'))
+        );
+
+        if (!exists) {
+          console.log(`[StorageService] Migrating local result to Supabase Cloud: ${local.draw_date} (${cleanSlot})`);
+          let publicUrl = local.image_url;
+          let fileName = local.file_name;
+
+          if (fileName) {
+            const localFilePath = path.join(UPLOADS_DIR, fileName);
+            if (fs.existsSync(localFilePath)) {
+              try {
+                const buf = fs.readFileSync(localFilePath);
+                const { error: upErr } = await this.supabase.storage
+                  .from(this.bucketName)
+                  .upload(fileName, buf, { contentType: local.file_type || 'image/jpeg', upsert: true });
+
+                if (!upErr) {
+                  const { data: pubData } = this.supabase.storage.from(this.bucketName).getPublicUrl(fileName);
+                  publicUrl = pubData.publicUrl;
+                }
+              } catch (e) {
+                console.warn(`[StorageService] Failed to upload local file ${fileName} to Supabase:`, e.message);
+              }
+            }
+          }
+
+          const record = {
+            draw_date: local.draw_date,
+            draw_time: local.draw_time,
+            slot: cleanSlot,
+            draw_name: local.draw_name || (cleanSlot === 'morning' ? 'Morning Result' : 'Night Result'),
+            series: local.series || (cleanSlot === 'morning' ? 'Morning Series' : 'Night Series'),
+            image_url: publicUrl,
+            file_name: fileName,
+            file_type: local.file_type || 'image/jpeg',
+            file_size: local.file_size || 0,
+            publish_at: local.publish_at || null
+          };
+
+          await this.supabase.from('results').insert([record]);
+        }
+      }
+    } catch (err) {
+      console.warn('[StorageService] syncLocalToSupabase error:', err.message);
     }
   }
 
@@ -70,14 +140,14 @@ class StorageService {
         active: true,
         mode: 'supabase',
         badge: 'Supabase Cloud Connected',
-        description: 'Using Supabase PostgreSQL and Supabase Storage bucket (' + this.bucketName + ')'
+        description: 'Using Supabase PostgreSQL and Supabase Storage bucket (' + this.bucketName + '). Results are permanently preserved.'
       };
     }
     return {
       active: true,
       mode: 'local',
-      badge: 'Local Engine Active (Ready for Supabase)',
-      description: 'Using local JSON database and disk uploads. Configure SUPABASE_URL & SUPABASE_KEY to switch to cloud.'
+      badge: 'Local Disk Engine (Ephemeral)',
+      description: 'Using local JSON database and disk uploads. Note: If hosted on Render, uploads will be lost on container restart. Configure SUPABASE_URL & SUPABASE_KEY to persist results permanently.'
     };
   }
 
@@ -106,9 +176,11 @@ class StorageService {
   }
 
   // --- QUERY RESULTS ---
-  // publicOnly: if true, filters out scheduled (not-yet-published) results
+  // Merges Supabase cloud results with local results to ensure zero data loss
   async getAllResults(query = {}) {
     const { date, slot, search, limit = 50, offset = 0, publicOnly = false } = query;
+
+    let combined = [];
 
     if (this.supabase) {
       try {
@@ -133,64 +205,66 @@ class StorageService {
           dbQuery = dbQuery.ilike('draw_name', `%${search}%`);
         }
 
-        const start = parseInt(offset, 10) || 0;
-        const end = start + (parseInt(limit, 10) || 50) - 1;
-        dbQuery = dbQuery.range(start, end);
-
-        const { data, count, error } = await dbQuery;
+        const { data, error } = await dbQuery;
         if (!error && data) {
-          let results = data;
-          // Filter scheduled results for public API
-          if (publicOnly) {
-            results = results.filter(r => isPublished(r));
-          }
-          // Add is_published flag for admin
-          results = results.map(r => ({ ...r, is_published: isPublished(r) }));
-          return { results, total: count || results.length };
+          combined = data;
+        } else if (error) {
+          console.warn('[StorageService] Supabase query failed, falling back to local:', error?.message);
         }
-        console.warn('[StorageService] Supabase query failed, falling back to local:', error?.message);
       } catch (err) {
         console.warn('[StorageService] Supabase error, using local fallback:', err.message);
       }
     }
 
-    // Local JSON query
-    let list = this.readLocalResults();
+    // Always merge local results for any items not yet in cloud
+    let localList = this.readLocalResults();
     if (date) {
-      list = list.filter(r => r.draw_date === date);
+      localList = localList.filter(r => r.draw_date === date);
     }
     if (slot && slot !== 'all') {
       const s = slot.toLowerCase();
       if (s === 'morning' || s === 'day') {
-        list = list.filter(r => r.slot.toLowerCase() === 'morning' || r.slot.toLowerCase() === 'day');
+        localList = localList.filter(r => r.slot.toLowerCase() === 'morning' || r.slot.toLowerCase() === 'day');
       } else {
-        list = list.filter(r => r.slot.toLowerCase() === s);
+        localList = localList.filter(r => r.slot.toLowerCase() === s);
       }
     }
     if (search) {
       const q = search.toLowerCase();
-      list = list.filter(r => (r.draw_name && r.draw_name.toLowerCase().includes(q)) || (r.series && r.series.toLowerCase().includes(q)));
+      localList = localList.filter(r => (r.draw_name && r.draw_name.toLowerCase().includes(q)) || (r.series && r.series.toLowerCase().includes(q)));
+    }
+
+    // Merge: add local records that aren't already represented in cloud results
+    for (const loc of localList) {
+      const cleanLocSlot = (loc.slot === 'day' ? 'morning' : loc.slot).toLowerCase();
+      const exists = combined.some(c =>
+        c.draw_date === loc.draw_date &&
+        (c.slot.toLowerCase() === cleanLocSlot || (c.slot.toLowerCase() === 'morning' && cleanLocSlot === 'day'))
+      );
+      if (!exists) {
+        combined.push(loc);
+      }
     }
 
     // Sort by draw_date DESC, then draw_time DESC
-    list.sort((a, b) => {
+    combined.sort((a, b) => {
       const dDiff = new Date(b.draw_date).getTime() - new Date(a.draw_date).getTime();
       if (dDiff !== 0) return dDiff;
       return (b.draw_time || '').localeCompare(a.draw_time || '');
     });
 
     // Add is_published flag
-    list = list.map(r => ({ ...r, is_published: isPublished(r) }));
+    combined = combined.map(r => ({ ...r, is_published: isPublished(r) }));
 
-    // Filter for public
+    // Filter for public API
     if (publicOnly) {
-      list = list.filter(r => r.is_published);
+      combined = combined.filter(r => r.is_published);
     }
 
-    const total = list.length;
+    const total = combined.length;
     const start = parseInt(offset, 10) || 0;
     const count = parseInt(limit, 10) || 50;
-    const paginated = list.slice(start, start + count);
+    const paginated = combined.slice(start, start + count);
 
     return { results: paginated, total };
   }
@@ -233,6 +307,7 @@ class StorageService {
   }
 
   // --- CREATE / UPLOAD RESULT ---
+  // Dual persistence: Stores in Supabase Cloud AND maintains local cache
   async createResult({ draw_date, draw_time, slot, draw_name, series, file, publish_at }) {
     const id = (Date.now().toString(36) + Math.random().toString(36).substring(2, 8));
     const rawSlot = (slot || 'morning').toLowerCase();
@@ -240,68 +315,17 @@ class StorageService {
     const cleanDate = draw_date || new Date().toISOString().split('T')[0];
     const timeFormatted = draw_time || (cleanSlot === 'morning' ? '02:00 PM' : '09:00 PM');
     const defaultName = draw_name || (cleanSlot === 'morning' ? 'Morning Result' : 'Night Result');
-    // publish_at: ISO string or null (null = publish immediately)
+    const defaultSeries = series || (cleanSlot === 'morning' ? 'Morning Series' : 'Night Series');
     const scheduledPublishAt = publish_at || null;
 
     let imageUrl = '';
     let fileName = '';
     let fileType = file ? file.mimetype : 'image/jpeg';
     let fileSize = file ? file.size : 0;
-
     const fileExt = file ? path.extname(file.originalname).toLowerCase() || '.jpg' : '.jpg';
     const storageKey = `${cleanDate}_${cleanSlot}_${Date.now()}${fileExt}`;
 
-    if (this.supabase && file && file.buffer) {
-      try {
-        const { data: uploadData, error: uploadErr } = await this.supabase.storage
-          .from(this.bucketName)
-          .upload(storageKey, file.buffer, {
-            contentType: fileType,
-            upsert: true
-          });
-
-        if (uploadErr) {
-          throw new Error('Supabase storage upload failed: ' + uploadErr.message);
-        }
-
-        const { data: publicData } = this.supabase.storage
-          .from(this.bucketName)
-          .getPublicUrl(storageKey);
-
-        imageUrl = publicData.publicUrl;
-        fileName = storageKey;
-
-        // Insert into Supabase DB
-        const newRecord = {
-          draw_date: cleanDate,
-          draw_time: timeFormatted,
-          slot: cleanSlot,
-          draw_name: defaultName,
-          series: series || (cleanSlot === 'day' ? 'Day Series' : 'Night Series'),
-          image_url: imageUrl,
-          file_name: fileName,
-          file_type: fileType,
-          file_size: fileSize,
-          publish_at: scheduledPublishAt
-        };
-
-        const { data: inserted, error: insertErr } = await this.supabase
-          .from('results')
-          .insert([newRecord])
-          .select()
-          .single();
-
-        if (insertErr) {
-          throw new Error('Supabase DB insert failed: ' + insertErr.message);
-        }
-
-        return inserted;
-      } catch (err) {
-        console.error('[StorageService] Supabase upload error, falling back to local disk:', err.message);
-      }
-    }
-
-    // Local Disk Fallback
+    // 1. Save local copy to disk
     if (file && file.buffer) {
       const diskPath = path.join(UPLOADS_DIR, storageKey);
       fs.writeFileSync(diskPath, file.buffer);
@@ -312,13 +336,66 @@ class StorageService {
       imageUrl = `/uploads/${fileName}`;
     }
 
+    let insertedRecord = null;
+
+    // 2. Upload to Supabase Cloud if available
+    if (this.supabase && file && file.buffer) {
+      try {
+        const { data: uploadData, error: uploadErr } = await this.supabase.storage
+          .from(this.bucketName)
+          .upload(storageKey, file.buffer, {
+            contentType: fileType,
+            upsert: true
+          });
+
+        if (uploadErr) {
+          console.warn('[StorageService] Supabase storage upload failed:', uploadErr.message);
+        } else {
+          const { data: publicData } = this.supabase.storage
+            .from(this.bucketName)
+            .getPublicUrl(storageKey);
+
+          imageUrl = publicData.publicUrl;
+          fileName = storageKey;
+
+          const newRecord = {
+            draw_date: cleanDate,
+            draw_time: timeFormatted,
+            slot: cleanSlot,
+            draw_name: defaultName,
+            series: defaultSeries,
+            image_url: imageUrl,
+            file_name: fileName,
+            file_type: fileType,
+            file_size: fileSize,
+            publish_at: scheduledPublishAt
+          };
+
+          const { data: inserted, error: insertErr } = await this.supabase
+            .from('results')
+            .insert([newRecord])
+            .select()
+            .single();
+
+          if (insertErr) {
+            console.warn('[StorageService] Supabase DB insert failed:', insertErr.message);
+          } else {
+            insertedRecord = inserted;
+          }
+        }
+      } catch (err) {
+        console.error('[StorageService] Supabase upload error:', err.message);
+      }
+    }
+
+    // 3. Save to local JSON database for local redundancy
     const localRecord = {
-      id,
+      id: (insertedRecord && insertedRecord.id) ? insertedRecord.id : id,
       draw_date: cleanDate,
       draw_time: timeFormatted,
       slot: cleanSlot,
       draw_name: defaultName,
-      series: series || (cleanSlot === 'day' ? 'Day Series' : 'Night Series'),
+      series: defaultSeries,
       image_url: imageUrl,
       file_name: fileName,
       file_type: fileType,
@@ -329,10 +406,15 @@ class StorageService {
     };
 
     const list = this.readLocalResults();
-    list.unshift(localRecord);
+    const existingIdx = list.findIndex(r => r.draw_date === cleanDate && r.slot === cleanSlot);
+    if (existingIdx !== -1) {
+      list[existingIdx] = localRecord;
+    } else {
+      list.unshift(localRecord);
+    }
     this.writeLocalResults(list);
 
-    return localRecord;
+    return insertedRecord || localRecord;
   }
 
   // --- UPDATE RESULT ---
@@ -361,9 +443,14 @@ class StorageService {
       fileType = file.mimetype;
       fileSize = file.size;
 
+      // Local write
+      const diskPath = path.join(UPLOADS_DIR, storageKey);
+      fs.writeFileSync(diskPath, file.buffer);
+      imageUrl = `/uploads/${storageKey}`;
+      fileName = storageKey;
+
       if (this.supabase) {
         try {
-          // Remove old file from Supabase storage if it was stored there
           if (existing.file_name) {
             await this.supabase.storage.from(this.bucketName).remove([existing.file_name]);
           }
@@ -380,30 +467,14 @@ class StorageService {
               .from(this.bucketName)
               .getPublicUrl(storageKey);
             imageUrl = publicData.publicUrl;
-            fileName = storageKey;
           }
         } catch (e) {
           console.warn('[StorageService] Supabase file replace failed:', e.message);
         }
       }
-
-      // If Supabase didn't run or failed, write locally
-      if (!imageUrl || imageUrl === existing.image_url) {
-        const diskPath = path.join(UPLOADS_DIR, storageKey);
-        fs.writeFileSync(diskPath, file.buffer);
-        imageUrl = `/uploads/${storageKey}`;
-        fileName = storageKey;
-
-        // Try deleting previous local file
-        if (existing.file_name) {
-          const oldPath = path.join(UPLOADS_DIR, existing.file_name);
-          if (fs.existsSync(oldPath)) {
-            try { fs.unlinkSync(oldPath); } catch (_) {}
-          }
-        }
-      }
     }
 
+    let updatedFromSupabase = null;
     if (this.supabase) {
       try {
         const { data, error } = await this.supabase
@@ -426,7 +497,7 @@ class StorageService {
           .single();
 
         if (!error && data) {
-          return data;
+          updatedFromSupabase = data;
         }
       } catch (err) {
         console.warn('[StorageService] Supabase update failed:', err.message);
@@ -435,7 +506,7 @@ class StorageService {
 
     // Local JSON update
     const list = this.readLocalResults();
-    const index = list.findIndex(r => r.id === id);
+    const index = list.findIndex(r => r.id === id || (r.draw_date === cleanDate && r.slot === cleanSlot));
     if (index !== -1) {
       list[index] = {
         ...list[index],
@@ -452,10 +523,10 @@ class StorageService {
         updated_at: new Date().toISOString()
       };
       this.writeLocalResults(list);
-      return list[index];
+      return updatedFromSupabase || list[index];
     }
 
-    throw new Error('Result could not be updated');
+    return updatedFromSupabase || { id, draw_date: cleanDate, slot: cleanSlot };
   }
 
   // --- DELETE RESULT ---
@@ -486,7 +557,7 @@ class StorageService {
     }
 
     const list = this.readLocalResults();
-    const filtered = list.filter(r => r.id !== id);
+    const filtered = list.filter(r => r.id !== id && !(r.draw_date === existing.draw_date && r.slot === existing.slot));
     this.writeLocalResults(filtered);
 
     return { success: true, id };

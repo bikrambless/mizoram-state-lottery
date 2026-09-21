@@ -139,6 +139,7 @@ async function loadStorageStatus() {
   const badge = document.getElementById('storage-health-badge');
   const text = document.getElementById('storage-health-text');
   const modeSub = document.getElementById('stat-storage-sub');
+  const warningBanner = document.getElementById('storage-warning-banner');
 
   try {
     const res = await fetch('/api/status');
@@ -150,8 +151,10 @@ async function loadStorageStatus() {
       if (badge) {
         if (s.mode === 'supabase') {
           badge.classList.remove('local');
+          if (warningBanner) warningBanner.style.display = 'none';
         } else {
           badge.classList.add('local');
+          if (warningBanner) warningBanner.style.display = 'block';
         }
       }
       if (modeSub) modeSub.textContent = s.mode === 'supabase' ? 'Supabase Cloud' : 'Local Disk Engine';
