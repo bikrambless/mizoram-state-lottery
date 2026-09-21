@@ -1420,6 +1420,19 @@ input::placeholder {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
 }
 
+.item-thumb.pdf-thumb {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px dashed rgba(245, 158, 11, 0.4);
+}
+.item-thumb.pdf-thumb:hover {
+  background: rgba(245, 158, 11, 0.18);
+  border-color: var(--color-gold-bright);
+}
+
 .item-details {
   flex: 1;
   display: flex;

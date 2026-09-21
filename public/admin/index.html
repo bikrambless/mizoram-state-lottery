@@ -437,6 +437,14 @@
     </div>
   </div>
 
+  <!-- PDF.js Engine for Client-Side PDF-to-Image Conversion -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script>
+    if (window.pdfjsLib) {
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    }
+  </script>
+
   <!-- Admin JavaScript -->
   <script src="/admin/admin.js"></script>
 </body>

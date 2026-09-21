@@ -350,11 +350,22 @@ function renderFilteredUploads() {
     const slotBadgeText = isMorning ? 'MORNING' : 'NIGHT';
     const isPublished = isItemPublished(item);
 
+    const isPdf = item.file_type === 'application/pdf' || 
+                  (item.image_url && item.image_url.toLowerCase().includes('.pdf')) ||
+                  (item.file_name && item.file_name.toLowerCase().endsWith('.pdf'));
+
+    const thumbHtml = isPdf
+      ? `<div class="item-thumb pdf-thumb" onclick="window.open('${item.image_url}', '_blank')" title="Click to view PDF document">
+          <span style="font-size: 1.8rem; line-height: 1;">📄</span>
+          <span style="font-size: 0.68rem; font-weight: 700; color: #f59e0b; margin-top: 4px;">PDF DOC</span>
+         </div>`
+      : `<img src="${item.image_url}" alt="Sheet Thumbnail" class="item-thumb" onclick="window.open('${item.image_url}', '_blank')">`;
+
     const card = document.createElement('div');
     card.className = 'result-item-card';
     card.innerHTML = `
       <div class="thumb-wrapper">
-        <img src="${item.image_url}" alt="Sheet Thumbnail" class="item-thumb" onclick="window.open('${item.image_url}', '_blank')">
+        ${thumbHtml}
         ${!isPublished ? '<span class="thumb-scheduled-tag">SCHEDULED</span>' : ''}
       </div>
       <div class="item-details">
@@ -490,6 +501,51 @@ function setupUploadSlots() {
   }
 }
 
+// =============================================================
+// PDF TO HIGH-RES JPG CONVERSION ENGINE (Client-Side HTML5 Canvas)
+// =============================================================
+async function convertPdfToJpg(pdfFile, statusCallback) {
+  if (statusCallback) statusCallback('Reading PDF document...');
+
+  if (!window.pdfjsLib) {
+    throw new Error('PDF conversion engine not loaded. Please ensure an internet connection is available.');
+  }
+
+  const arrayBuffer = await pdfFile.arrayBuffer();
+  const loadingTask = window.pdfjsLib.getDocument({ data: arrayBuffer });
+  const pdf = await loadingTask.promise;
+
+  if (statusCallback) statusCallback('Rendering Page 1 in High Definition...');
+  const page = await pdf.getPage(1);
+
+  // Scale 2.2 for ultra-sharp text and clear lottery numbers (approx 250-300 DPI)
+  const viewport = page.getViewport({ scale: 2.2 });
+
+  const canvas = document.createElement('canvas');
+  canvas.width = viewport.width;
+  canvas.height = viewport.height;
+  const ctx = canvas.getContext('2d');
+
+  await page.render({
+    canvasContext: ctx,
+    viewport: viewport
+  }).promise;
+
+  if (statusCallback) statusCallback('Encoding to high-res JPG...');
+
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (!blob) {
+        reject(new Error('Failed to generate image from PDF.'));
+        return;
+      }
+      const newName = pdfFile.name.replace(/\.pdf$/i, '') + '.jpg';
+      const jpgFile = new File([blob], newName, { type: 'image/jpeg', lastModified: Date.now() });
+      resolve({ file: jpgFile, previewUrl: canvas.toDataURL('image/jpeg', 0.92) });
+    }, 'image/jpeg', 0.92);
+  });
+}
+
 function setupSlotUploader(cfg) {
   const form = document.getElementById(cfg.formId);
   const fileInput = document.getElementById(cfg.fileInputId);
@@ -519,9 +575,34 @@ function setupSlotUploader(cfg) {
     if (alertBox) alertBox.style.display = 'none';
   }
 
-  function handleFile(file) {
-    slotSelectedFile = file;
+  async function handleFile(file) {
     hideAlert();
+
+    const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+    if (isPdf) {
+      if (dropContent) dropContent.style.display = 'none';
+      if (fileInfo) fileInfo.style.display = 'flex';
+      if (fileName) fileName.textContent = `📄 Converting ${file.name} to JPG...`;
+      if (fileSize) fileSize.textContent = 'Processing PDF...';
+
+      try {
+        const converted = await convertPdfToJpg(file, (msg) => {
+          if (fileName) fileName.textContent = `📄 ${msg}`;
+        });
+
+        slotSelectedFile = converted.file;
+        if (fileName) fileName.textContent = `✓ ${converted.file.name}`;
+        if (fileSize) fileSize.textContent = `${(converted.file.size / (1024 * 1024)).toFixed(2)} MB • Converted from PDF`;
+        showAlert(`✓ PDF automatically converted to High-Resolution JPG (${converted.file.name})! Ready to upload.`, 'success');
+      } catch (err) {
+        console.error('PDF conversion error:', err);
+        showAlert(`Could not convert PDF: ${err.message}. Please upload a JPG or PNG instead.`, 'error');
+        clearFile();
+      }
+      return;
+    }
+
+    slotSelectedFile = file;
     if (dropContent) dropContent.style.display = 'none';
     if (fileInfo) fileInfo.style.display = 'flex';
     if (fileName) fileName.textContent = file.name;
@@ -762,7 +843,16 @@ function setupModals() {
       formData.append('slot', slot);
       formData.append('draw_time', slot === 'morning' ? '02:00 PM' : '09:00 PM');
       if (fileInput && fileInput.files && fileInput.files[0]) {
-        formData.append('file', fileInput.files[0]);
+        let uploadFile = fileInput.files[0];
+        if (uploadFile.type === 'application/pdf' || uploadFile.name.toLowerCase().endsWith('.pdf')) {
+          try {
+            const converted = await convertPdfToJpg(uploadFile);
+            uploadFile = converted.file;
+          } catch (e) {
+            console.warn('PDF conversion in edit modal failed:', e);
+          }
+        }
+        formData.append('file', uploadFile);
       }
 
       if (mode === 'instant') {

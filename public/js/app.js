@@ -208,6 +208,10 @@ async function loadSingleSlot(slot) {
     if (loader) loader.style.display = 'none';
 
     if (result) {
+      const isPdf = (result.file_type === 'application/pdf') || 
+                    (result.image_url && result.image_url.toLowerCase().includes('.pdf')) ||
+                    (result.file_name && result.file_name.toLowerCase().endsWith('.pdf'));
+
       if (dateEl) dateEl.textContent = formatDateReadable(result.draw_date);
       if (timeEl) timeEl.textContent = `${result.draw_time || (isMorning ? '02:00 PM' : '09:00 PM')} IST`;
       if (statusEl) {
@@ -215,16 +219,38 @@ async function loadSingleSlot(slot) {
         statusEl.className = 'meta-val text-success';
       }
 
-      if (sheetImg) {
-        sheetImg.src = result.image_url;
-        sheetImg.alt = `${slotName} Official Result Sheet`;
-        sheetImg.style.display = 'block';
-        sheetImg.onclick = () => openLightboxModal(result);
+      const viewport = document.getElementById(`${prefix}-sheet-viewport`);
+      let pdfFrame = document.getElementById(`${prefix}-sheet-pdf`);
+
+      if (isPdf) {
+        if (sheetImg) sheetImg.style.display = 'none';
+        if (!pdfFrame && viewport) {
+          pdfFrame = document.createElement('iframe');
+          pdfFrame.id = `${prefix}-sheet-pdf`;
+          pdfFrame.className = 'full-sheet-pdf-frame';
+          viewport.appendChild(pdfFrame);
+        }
+        if (pdfFrame) {
+          pdfFrame.src = `${result.image_url}#toolbar=1`;
+          pdfFrame.style.display = 'block';
+        }
+      } else {
+        if (pdfFrame) pdfFrame.style.display = 'none';
+        if (sheetImg) {
+          sheetImg.src = result.image_url;
+          sheetImg.alt = `${slotName} Official Result Sheet`;
+          sheetImg.style.display = 'block';
+          sheetImg.onclick = () => openLightboxModal(result);
+        }
       }
 
       if (downloadBtn) {
         downloadBtn.href = result.image_url;
-        downloadBtn.setAttribute('download', `Mizoram_${isMorning ? 'Morning' : 'Night'}_Result_${result.draw_date}.jpg`);
+        downloadBtn.setAttribute('download', `Mizoram_${isMorning ? 'Morning' : 'Night'}_Result_${result.draw_date}.${isPdf ? 'pdf' : 'jpg'}`);
+        downloadBtn.innerHTML = `
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+          <span>Download ${isPdf ? 'PDF' : 'JPG'}</span>
+        `;
       }
     } else {
       // Empty state for this slot
@@ -266,6 +292,15 @@ function setupLightbox() {
 
   window.openLightboxModal = function(result) {
     if (!result) return;
+    const isPdf = (result.file_type === 'application/pdf') || 
+                  (result.image_url && result.image_url.toLowerCase().includes('.pdf')) ||
+                  (result.file_name && result.file_name.toLowerCase().endsWith('.pdf'));
+
+    if (isPdf) {
+      window.open(result.image_url, '_blank');
+      return;
+    }
+
     state.activeLightboxResult = result;
     const isMorning = result.slot === 'morning' || result.slot === 'day';
     const slotTitle = isMorning ? 'Morning Result' : 'Night Result';
@@ -455,6 +490,16 @@ function setupActionButtons() {
 }
 
 function printSheet(res) {
+  if (!res) return;
+  const isPdf = (res.file_type === 'application/pdf') || 
+                (res.image_url && res.image_url.toLowerCase().includes('.pdf')) ||
+                (res.file_name && res.file_name.toLowerCase().endsWith('.pdf'));
+
+  if (isPdf) {
+    window.open(res.image_url, '_blank');
+    return;
+  }
+
   const printWindow = window.open('', '_blank');
   const slotTitle = (res.slot === 'morning' || res.slot === 'day') ? 'Morning Result' : 'Night Result';
   printWindow.document.write(`
