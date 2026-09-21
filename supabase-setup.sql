@@ -7,14 +7,15 @@
 CREATE TABLE IF NOT EXISTS public.results (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     draw_date DATE NOT NULL,
-    draw_time VARCHAR(20) NOT NULL, -- e.g. "01:00 PM", "08:00 PM"
-    slot VARCHAR(20) NOT NULL,      -- "day" or "night"
+    draw_time VARCHAR(20) NOT NULL, -- e.g. "02:00 PM", "09:00 PM"
+    slot VARCHAR(20) NOT NULL,      -- "morning" or "night"
     draw_name VARCHAR(255) NOT NULL DEFAULT 'Mizoram State Lottery',
-    series VARCHAR(50) DEFAULT 'Day/Night',
+    series VARCHAR(50) DEFAULT 'Morning/Night Series',
     image_url TEXT NOT NULL,
     file_name VARCHAR(255),
     file_type VARCHAR(50) DEFAULT 'image/jpeg',
     file_size BIGINT DEFAULT 0,
+    publish_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ DEFAULT now(),
     updated_at TIMESTAMPTZ DEFAULT now()
 );
@@ -33,19 +34,19 @@ CREATE POLICY "Public results are viewable by everyone"
 ON public.results FOR SELECT 
 USING (true);
 
--- Allow authenticated / service_role users to insert, update, and delete
-DROP POLICY IF EXISTS "Allow service role or authenticated insert" ON public.results;
-CREATE POLICY "Allow service role or authenticated insert" 
+-- Allow insert, update, and delete for admin operations
+DROP POLICY IF EXISTS "Allow lottery sheet insert" ON public.results;
+CREATE POLICY "Allow lottery sheet insert" 
 ON public.results FOR INSERT 
 WITH CHECK (true);
 
-DROP POLICY IF EXISTS "Allow service role or authenticated update" ON public.results;
-CREATE POLICY "Allow service role or authenticated update" 
+DROP POLICY IF EXISTS "Allow lottery sheet update" ON public.results;
+CREATE POLICY "Allow lottery sheet update" 
 ON public.results FOR UPDATE 
 USING (true);
 
-DROP POLICY IF EXISTS "Allow service role or authenticated delete" ON public.results;
-CREATE POLICY "Allow service role or authenticated delete" 
+DROP POLICY IF EXISTS "Allow lottery sheet delete" ON public.results;
+CREATE POLICY "Allow lottery sheet delete" 
 ON public.results FOR DELETE 
 USING (true);
 
@@ -61,17 +62,17 @@ CREATE POLICY "Public can view lottery result sheets"
 ON storage.objects FOR SELECT 
 USING (bucket_id = 'results');
 
-DROP POLICY IF EXISTS "Service role / admin can upload lottery sheets" ON storage.objects;
-CREATE POLICY "Service role / admin can upload lottery sheets" 
+DROP POLICY IF EXISTS "Allow upload to results bucket" ON storage.objects;
+CREATE POLICY "Allow upload to results bucket" 
 ON storage.objects FOR INSERT 
 WITH CHECK (bucket_id = 'results');
 
-DROP POLICY IF EXISTS "Service role / admin can update lottery sheets" ON storage.objects;
-CREATE POLICY "Service role / admin can update lottery sheets" 
+DROP POLICY IF EXISTS "Allow update in results bucket" ON storage.objects;
+CREATE POLICY "Allow update in results bucket" 
 ON storage.objects FOR UPDATE 
 USING (bucket_id = 'results');
 
-DROP POLICY IF EXISTS "Service role / admin can delete lottery sheets" ON storage.objects;
-CREATE POLICY "Service role / admin can delete lottery sheets" 
+DROP POLICY IF EXISTS "Allow delete in results bucket" ON storage.objects;
+CREATE POLICY "Allow delete in results bucket" 
 ON storage.objects FOR DELETE 
 USING (bucket_id = 'results');
