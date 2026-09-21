@@ -188,7 +188,8 @@ class StorageService {
           .from('results')
           .select('*', { count: 'exact' })
           .order('draw_date', { ascending: false })
-          .order('draw_time', { ascending: false });
+          .order('draw_time', { ascending: false })
+          .order('created_at', { ascending: false });
 
         if (date) {
           dbQuery = dbQuery.eq('draw_date', date);
@@ -246,12 +247,28 @@ class StorageService {
       }
     }
 
-    // Sort by draw_date DESC, then draw_time DESC
+    // Sort by draw_date DESC, draw_time DESC, then newest updated_at/created_at first
     combined.sort((a, b) => {
       const dDiff = new Date(b.draw_date).getTime() - new Date(a.draw_date).getTime();
       if (dDiff !== 0) return dDiff;
-      return (b.draw_time || '').localeCompare(a.draw_time || '');
+      const tDiff = (b.draw_time || '').localeCompare(a.draw_time || '');
+      if (tDiff !== 0) return tDiff;
+      const bTime = new Date(b.updated_at || b.created_at || 0).getTime();
+      const aTime = new Date(a.updated_at || a.created_at || 0).getTime();
+      return bTime - aTime;
     });
+
+    // Deduplicate: Keep only the freshest sheet for each (draw_date, slot)
+    const seenSlots = new Set();
+    const deduplicated = [];
+    for (const item of combined) {
+      const slotKey = `${item.draw_date}_${(item.slot === 'day' ? 'morning' : item.slot).toLowerCase()}`;
+      if (!seenSlots.has(slotKey)) {
+        seenSlots.add(slotKey);
+        deduplicated.push(item);
+      }
+    }
+    combined = deduplicated;
 
     // Add is_published flag
     combined = combined.map(r => ({ ...r, is_published: isPublished(r) }));
@@ -338,7 +355,7 @@ class StorageService {
 
     let insertedRecord = null;
 
-    // 2. Upload to Supabase Cloud if available
+    // 2. Upload to Supabase Cloud if available (with auto-replace for same date & slot)
     if (this.supabase && file && file.buffer) {
       try {
         const { data: uploadData, error: uploadErr } = await this.supabase.storage
@@ -358,29 +375,79 @@ class StorageService {
           imageUrl = publicData.publicUrl;
           fileName = storageKey;
 
-          const newRecord = {
-            draw_date: cleanDate,
-            draw_time: timeFormatted,
-            slot: cleanSlot,
-            draw_name: defaultName,
-            series: defaultSeries,
-            image_url: imageUrl,
-            file_name: fileName,
-            file_type: fileType,
-            file_size: fileSize,
-            publish_at: scheduledPublishAt
-          };
-
-          const { data: inserted, error: insertErr } = await this.supabase
+          // Check if a record already exists for this draw_date and slot
+          const slotQuery = (cleanSlot === 'morning') ? ['morning', 'day'] : ['night'];
+          const { data: existingRows } = await this.supabase
             .from('results')
-            .insert([newRecord])
-            .select()
-            .single();
+            .select('id, file_name')
+            .eq('draw_date', cleanDate)
+            .in('slot', slotQuery);
 
-          if (insertErr) {
-            console.warn('[StorageService] Supabase DB insert failed:', insertErr.message);
+          if (existingRows && existingRows.length > 0) {
+            // Update the primary existing record
+            const primaryExisting = existingRows[0];
+            const { data: updated, error: updateErr } = await this.supabase
+              .from('results')
+              .update({
+                draw_time: timeFormatted,
+                slot: cleanSlot,
+                draw_name: defaultName,
+                series: defaultSeries,
+                image_url: imageUrl,
+                file_name: fileName,
+                file_type: fileType,
+                file_size: fileSize,
+                publish_at: scheduledPublishAt,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', primaryExisting.id)
+              .select()
+              .single();
+
+            if (!updateErr && updated) {
+              insertedRecord = updated;
+            }
+
+            // Remove previous file from Supabase storage if different
+            if (primaryExisting.file_name && primaryExisting.file_name !== fileName) {
+              await this.supabase.storage.from(this.bucketName).remove([primaryExisting.file_name]);
+            }
+
+            // Remove any redundant duplicates for this slot & date
+            if (existingRows.length > 1) {
+              const extraIds = existingRows.slice(1).map(r => r.id);
+              const extraFiles = existingRows.slice(1).map(r => r.file_name).filter(Boolean);
+              await this.supabase.from('results').delete().in('id', extraIds);
+              if (extraFiles.length > 0) {
+                await this.supabase.storage.from(this.bucketName).remove(extraFiles);
+              }
+            }
           } else {
-            insertedRecord = inserted;
+            // Insert brand new record
+            const newRecord = {
+              draw_date: cleanDate,
+              draw_time: timeFormatted,
+              slot: cleanSlot,
+              draw_name: defaultName,
+              series: defaultSeries,
+              image_url: imageUrl,
+              file_name: fileName,
+              file_type: fileType,
+              file_size: fileSize,
+              publish_at: scheduledPublishAt
+            };
+
+            const { data: inserted, error: insertErr } = await this.supabase
+              .from('results')
+              .insert([newRecord])
+              .select()
+              .single();
+
+            if (insertErr) {
+              console.warn('[StorageService] Supabase DB insert failed:', insertErr.message);
+            } else {
+              insertedRecord = inserted;
+            }
           }
         }
       } catch (err) {
@@ -401,12 +468,12 @@ class StorageService {
       file_type: fileType,
       file_size: fileSize,
       publish_at: scheduledPublishAt,
-      created_at: new Date().toISOString(),
+      created_at: (insertedRecord && insertedRecord.created_at) ? insertedRecord.created_at : new Date().toISOString(),
       updated_at: new Date().toISOString()
     };
 
     const list = this.readLocalResults();
-    const existingIdx = list.findIndex(r => r.draw_date === cleanDate && r.slot === cleanSlot);
+    const existingIdx = list.findIndex(r => r.draw_date === cleanDate && (r.slot === cleanSlot || (r.slot === 'day' && cleanSlot === 'morning')));
     if (existingIdx !== -1) {
       list[existingIdx] = localRecord;
     } else {

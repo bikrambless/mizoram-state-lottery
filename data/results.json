@@ -1,32 +1,32 @@
 [
   {
-    "id": "mub1ifbzg91rbe",
+    "id": "c0509540-e823-4182-a6d7-3fc3a4a9705f",
     "draw_date": "2026-09-21",
     "draw_time": "09:00 PM",
     "slot": "night",
     "draw_name": "Night Result",
     "series": "Night Series",
-    "image_url": "/uploads/2026-09-21_night_1789982747423.jpeg",
-    "file_name": "2026-09-21_night_1789982747423.jpeg",
+    "image_url": "https://dgkqvhuldgqghdhyfzqr.supabase.co/storage/v1/object/public/results/2026-09-21_night_1790025983803.jpeg",
+    "file_name": "2026-09-21_night_1790025983803.jpeg",
     "file_type": "image/jpeg",
-    "file_size": 289658,
-    "publish_at": "2026-09-21T14:56:00+05:30",
-    "created_at": "2026-09-21T09:25:47.424Z",
-    "updated_at": "2026-09-21T09:25:47.425Z"
+    "file_size": 3736416,
+    "publish_at": null,
+    "created_at": "2026-09-21T21:26:26.604865+00:00",
+    "updated_at": "2026-09-21T21:26:26.604865+00:00"
   },
   {
-    "id": "muauzxuaksydo8",
+    "id": "75bbf99b-d26c-4795-9714-1cb69b10d5af",
     "draw_date": "2026-09-21",
     "draw_time": "02:00 PM",
     "slot": "morning",
-    "draw_name": "Morning Result",
-    "series": "Night Series",
-    "image_url": "/uploads/2026-09-21_morning_1789971807250.jpeg",
-    "file_name": "2026-09-21_morning_1789971807250.jpeg",
+    "draw_name": "Morning Result Updated",
+    "series": "Morning Series",
+    "image_url": "https://dgkqvhuldgqghdhyfzqr.supabase.co/storage/v1/object/public/results/2026-09-21_morning_1790026219849.jpeg",
+    "file_name": "2026-09-21_morning_1790026219849.jpeg",
     "file_type": "image/jpeg",
-    "file_size": 289658,
-    "publish_at": "2026-09-21T14:00:00+05:30",
-    "created_at": "2026-09-21T06:23:27.252Z",
-    "updated_at": "2026-09-21T06:23:27.252Z"
+    "file_size": 3745280,
+    "publish_at": null,
+    "created_at": "2026-09-21T21:30:22.826145+00:00",
+    "updated_at": "2026-09-21T21:33:54.344+00:00"
   }
 ]
