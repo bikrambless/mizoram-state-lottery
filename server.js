@@ -306,7 +306,7 @@ app.get('*', (req, res) => {
 });
 
 // Start Server
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log('====================================================');
   console.log(` MIZORAM STATE LOTTERY PORTAL RUNNING ON PORT ${PORT}`);
   console.log(` User Portal:  http://localhost:${PORT}`);
@@ -314,3 +314,4 @@ app.listen(PORT, () => {
   console.log(` Storage Mode: ${storageService.getStatus().badge}`);
   console.log('====================================================');
 });
+

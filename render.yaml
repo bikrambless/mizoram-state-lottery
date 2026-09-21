@@ -8,8 +8,6 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
-      - key: PORT
-        value: 5000
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_KEY
@@ -22,3 +20,10 @@ services:
         sync: false
       - key: ADMIN_JWT_SECRET
         generateValue: true
+      - key: PORTAL_NAME
+        value: MIZORAM STATE LOTTERY
+      - key: PORTAL_SLUG
+        value: mizoram-lottery
+      - key: TAGLINE
+        value: Official Daily Lottery Result Publishing Portal
+
